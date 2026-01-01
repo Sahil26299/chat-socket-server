@@ -37,7 +37,6 @@ io.on("connection", (socket) => {
   socket.on(
     socketEvents.SEND_MESSAGE,
     (msg: any, toUserId: string, chatId: string) => {
-      console.log(msg, "toUserId:", toUserId, "chatId:", chatId, "msg");
 
       // emit message to user
       socket.to(`user-room:${toUserId}`).emit(socketEvents.USER_MESSAGE, {
