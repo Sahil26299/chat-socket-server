@@ -36,13 +36,39 @@ io.on("connection", (socket) => {
 
   // join user room (dashboard)
   socket.on(socketEvents.JOIN_USER_ROOM, async (userId: string) => {
-    console.log("user joined the user room:", userId);
+    // console.log("user joined the user room:", userId, "socket:", socket.id);
 
+    const existingUserSocketMap = await redis.hgetall(
+      redisKeys.USER_SOCKET_MAP
+    );
+    // console.log("userSocketMap:", Object.values(existingUserSocketMap));
+
+    if (Object.values(existingUserSocketMap).includes(userId)) {
+      // Remove user from online users set
+      await redis.srem(redisKeys.ONLINE_USERS, userId);
+
+      // Remove user from user-socket-map
+      const prevSocketIds = Object.entries(existingUserSocketMap)
+        ?.filter((entr) => entr[1] === userId)
+        ?.map((entr) => entr[0]);
+      // console.log("Deleting socket id: ", prevSocketIds);
+      if (prevSocketIds?.length > 0) {
+        for (let index = 0; index < prevSocketIds.length; index++) {
+          const prevSocketId = prevSocketIds[index];
+          await redis.hdel(redisKeys.USER_SOCKET_MAP, prevSocketId);
+        }
+      }
+
+      // Emit user offline to all users
+      socket.broadcast.emit(socketEvents.USER_OFFLINE, userId);
+    }
     // Add user to online users set
     await redis.sadd(redisKeys.ONLINE_USERS, userId);
+    // console.log("user added to online users set");
 
     // Map online user to socket id, to in turn receive that user based on socket id
     await redis.hset(redisKeys.USER_SOCKET_MAP, socket.id, userId);
+    // console.log("user added to user-socket-map");
 
     // Emit user online to all users
     socket.broadcast.emit(socketEvents.USER_ONLINE, userId);
@@ -53,7 +79,7 @@ io.on("connection", (socket) => {
 
   // join chat room (chat)
   socket.on(socketEvents.JOIN_CHAT_ROOM, (chatId: string) => {
-    console.log("user joined the chat:", chatId);
+    // console.log("user joined the chat:", chatId, "socket:", socket.id);
     socket.join(`chat-room:${chatId}`);
   });
 
@@ -95,7 +121,7 @@ io.on("connection", (socket) => {
       await redis.srem(redisKeys.ONLINE_USERS, userId);
 
       // Remove user from user-socket-map
-      await redis.hdel(redisKeys.USER_SOCKET_MAP, userId);
+      await redis.hdel(redisKeys.USER_SOCKET_MAP, socket.id);
 
       // Emit user offline to all users
       socket.broadcast.emit(socketEvents.USER_OFFLINE, userId);
