@@ -39,17 +39,13 @@ io.on("connection", (socket) => {
     console.log("user joined the user room:", userId);
 
     // Add user to online users set
-    const isNewUser = await redis.sadd(redisKeys.ONLINE_USERS, userId);
+    await redis.sadd(redisKeys.ONLINE_USERS, userId);
 
     // Map online user to socket id, to in turn receive that user based on socket id
     await redis.hset(redisKeys.USER_SOCKET_MAP, socket.id, userId);
-    // Track user's socket sessions to handle multiple tabs/devices
-    await redis.sadd(`user-sessions:${userId}`, socket.id);
 
-    // Emit user online to all users ONLY if they weren't already online
-    if (isNewUser === 1) {
-      socket.broadcast.emit(socketEvents.USER_ONLINE, userId);
-    }
+    // Emit user online to all users
+    socket.broadcast.emit(socketEvents.USER_ONLINE, userId);
 
     // Join user room
     socket.join(`user-room:${userId}`);
@@ -90,24 +86,19 @@ io.on("connection", (socket) => {
 
   // disconnection
   socket.on(socketEvents.DISCONNECT, async () => {
+    console.log("user disconnected");
     const userId = await redis.hget(redisKeys.USER_SOCKET_MAP, socket.id);
     console.log(userId, "disconnecting userId");
 
     if (userId) {
-      // Remove this specific socket from the user's session list
-      await redis.srem(`user-sessions:${userId}`, socket.id);
+      // Remove user from online users set
+      await redis.srem(redisKeys.ONLINE_USERS, userId);
 
-      // Check if user has any other active sessions
-      const remainingSessions = await redis.scard(`user-sessions:${userId}`);
+      // Remove user from user-socket-map
+      await redis.hdel(redisKeys.USER_SOCKET_MAP, userId);
 
-      if (remainingSessions === 0) {
-        // No more sessions, user is truly offline
-        await redis.srem(redisKeys.ONLINE_USERS, userId);
-        socket.broadcast.emit(socketEvents.USER_OFFLINE, userId);
-      }
-
-      // Remove user from user-socket-map (cleanup)
-      await redis.hdel(redisKeys.USER_SOCKET_MAP, socket.id);
+      // Emit user offline to all users
+      socket.broadcast.emit(socketEvents.USER_OFFLINE, userId);
     }
   });
 });
