@@ -95,7 +95,7 @@ io.on("connection", (socket) => {
     async (chatId: string, userId: string) => {
       // console.log("user typing:", roomKeys.CHAT_ROOM(chatId));
       
-      await redis.set(redisKeys.USER_TYPING(chatId, userId), 1, "EX", 3);
+      await redis.set(redisKeys.USER_TYPING(chatId, userId), 1, "EX", 2);
       socket
         .to(roomKeys.CHAT_ROOM(chatId))
         .emit(socketEvents.USER_START_TYPING, { userId });
